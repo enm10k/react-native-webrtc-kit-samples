@@ -1,6 +1,6 @@
 {
   "name": "HelloSora",
   "displayName": "HelloSora",
-  "url": "ws://example.com/signaling",
+  "url": "wss://sora-labo.shiguredo.jp/signaling",
   "defaultChannelId": "react-native-webrtc-kit"
 }
