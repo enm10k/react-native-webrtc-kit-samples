@@ -122,6 +122,7 @@ export class SoraSignalingMessage {
  */
 export const SORA_EVENTS = [
   'connectionstatechange',
+  'track',
 ];
 
 /**

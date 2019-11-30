@@ -8,15 +8,11 @@ import {
   PermissionsAndroid
 } from 'react-native';
 import {
-  Title,
   Text,
   TextInput,
-  Switch,
   Button,
-  Checkbox
 } from 'react-native-paper';
 import {
-  RTCMediaStreamTrack,
   RTCRtpSender,
   RTCRtpReceiver,
   RTCVideoView,
@@ -33,11 +29,9 @@ type Props = {};
 type State = {
   channelId: string,
   signalingKey: String,
-  multistream: bool,
-  pubConn: Sora | null,
-  subConn: Sora | null,
+  sora: Sora | null,
   sender: RTCRtpSender | null;
-  receiver: RTCRtpReceiver | null;
+  tracks: Array<RTCMediaStreamTrack>;
   objectFit: RTCObjectFit
 };
 
@@ -63,11 +57,9 @@ export default class App extends Component<Props, State> {
     this.state = {
       channelId: defaultChannelId,
       signalingKey: '',
-      multistream: false,
-      pubConn: null,
-      subConn: null,
+      sora: null,
       sender: null,
-      receiver: null,
+      tracks: [],
       objectFit: 'cover'
     };
   }
@@ -84,23 +76,6 @@ export default class App extends Component<Props, State> {
     return (
       <View style={styles.body}>
         <View style={styles.div_content}>
-          <Text style={styles.instructions}>
-            {instructions}
-          </Text>
-          <View style={styles.div_header}>
-            <RTCVideoView
-              style={styles.videoview}
-              track={this.state.sender ? this.state.sender.track : null}
-              objectFit={this.state.objectFit}
-            />
-          </View>
-          <View style={styles.div_header}>
-            <RTCVideoView
-              style={styles.videoview}
-              track={this.state.receiver ? this.state.receiver.track : null}
-              objectFit={this.state.objectFit}
-            />
-          </View>
           <View style={{ flex: 1, flexDirection: 'column' }}>
             <TextInput
               label="チャネルID"
@@ -131,21 +106,6 @@ export default class App extends Component<Props, State> {
               value={this.state.signalingKey}
               placeholder='Signaling Key'
             />
-            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center'}}>
-              <Switch
-                value={this.state.multistream}
-                onValueChange={() => {
-                  this.setState({ multistream: !this.state.multistream });
-                }}
-              />
-              <Text
-                onPress={(value) => {
-                  this.setState({ multistream: !this.state.multistream });
-                }}
-              >
-                マルチストリーム
-              </Text>
-            </View>
           </View>
           <View>
             <Button
@@ -153,72 +113,60 @@ export default class App extends Component<Props, State> {
               mode="outlined"
               onPress={() => {
                 this.setState(prev => {
-                  const role = this.state.multistream ? 'group' : 'publisher';
-                  const pubConn = new Sora(url, role, prev.channelId, prev.signalingKey);
-                  pubConn.onconnectionstatechange = function (event) {
+                  const role = 'group';
+                  const sora = new Sora(url, role, prev.channelId, prev.signalingKey);
+                  sora.onconnectionstatechange = function (event) {
                     this.setState(prev => {
-                      logger.log("# publisher connection state change => ",
+                      logger.log("# connection state change => ",
                         event.target.connectionState);
                       if (event.target.connectionState == 'connected') {
-                        var sender = prev.pubConn._pc.senders.find(each => {
+                        var sender = prev.sora._pc.senders.find(each => {
                           return each.track.kind == 'video'
                         });
-                        logger.log("# publisher connection connected =>", sender);
-                        return { sender: sender }
+                        var tracks = prev.sora._pc.receivers.filter(each =>
+                          each.track.kind == 'video'
+                        ).map(each => each.track);
+
+                        logger.log('# DEBUG: connected, tracks:', tracks);
+                        return {
+                          sender: sender,
+                          tracks: tracks,
+                        }
                       }
                     });
                   }.bind(this);
-                  pubConn.connect();
-                  return { pubConn: pubConn };
-                });
-              }}
-            >
-              パブリッシャーで接続する
-            </Button>
-            <Button
-              raised
-              mode="outlined"
-              onPress={() => {
-                this.setState(prev => {
-                  const role = this.state.multistream ? 'groupsub' : 'subscriber';
-                  const subConn = new Sora(url, role, prev.channelId, prev.signalingKey);
-                  subConn.onconnectionstatechange = function (event) {
-                    this.setState(prev => {
-                      logger.log("# subscriber connection state change => ",
-                        event.target.connectionState);
-                      if (event.target.connectionState == 'connected') {
-                        var recv = prev.subConn._pc.receivers.find(each => {
-                          return each.track.kind == 'video'
-                        });
-                        logger.log("# subscriber connection connected =>", recv);
-                        return { receiver: recv }
-                      }
-                    });
+                  sora.ontrack = function (event) {
+                    logger.log('# DEBUG: ontrack, event', event);
+                    if (event.track && event.track.kind == 'video') {
+                      logger.log('# DEBUG: ontrack, event.track', event.track);
+                      this.setState(prev => {
+                        prev.tracks.push(event.track);
+                        return {
+                          tracks: prev.tracks,
+                        };
+                      });
+                    }
                   }.bind(this);
-                  subConn.connect();
-                  return { subConn: subConn }
+                  sora.connect();
+                  return { sora: sora };
                 });
               }}
             >
-              サブスクライバーで接続する
+              接続する
             </Button>
             <Button
               raised
               mode="outlined"
               onPress={() => {
                 logger.log("# disconnect");
-                if (this.state.pubConn) {
-                  this.state.pubConn.disconnect();
-                }
-                if (this.state.subConn) {
-                  this.state.subConn.disconnect();
+                if (this.state.sora) {
+                  this.state.sora.disconnect();
                 }
                 this.setState(prev => {
                   return {
-                    pubConn: null,
-                    subConn: null,
-                    pubStreamValueTag: null,
-                    subStreamValueTag: null
+                    sora: null,
+                    sender: null,
+                    tracks: [],
                   }
                 });
               }}
@@ -226,18 +174,29 @@ export default class App extends Component<Props, State> {
               接続解除する
             </Button>
           </View>
+         <View style={styles.div_header}>
+            <RTCVideoView
+              style={styles.videoview}
+              track={this.state.sender ? this.state.sender.track : null}
+              objectFit={this.state.objectFit}
+            />
+          </View>
+          {this.state.tracks.map((track, i) => {
+            return (
+              <View key={i} style={styles.div_header}>
+                <RTCVideoView
+                  style={styles.videoview}
+                  track={track}
+                  objectFit={this.state.objectFit}
+                />
+              </View>
+            )
+          })}
         </View>
       </View >
     );
   }
 }
-
-const instructions = Platform.select({
-  ios: 'Press Cmd+R to reload,\n' +
-    'Cmd+D or shake for dev menu',
-  android: 'Double tap R on your keyboard to reload,\n' +
-    'Shake or press menu button for dev menu',
-});
 
 const styles = StyleSheet.create({
   body: {
@@ -270,10 +229,5 @@ const styles = StyleSheet.create({
     fontSize: 20,
     textAlign: 'center',
     margin: 10,
-  },
-  instructions: {
-    textAlign: 'center',
-    color: '#333333',
-    marginBottom: 5,
   },
 });
