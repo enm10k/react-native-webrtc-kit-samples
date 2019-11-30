@@ -122,6 +122,7 @@ export class SoraSignalingMessage {
  */
 export const SORA_EVENTS = [
   'connectionstatechange',
+  'track',
 ];
 
 /**
@@ -198,6 +199,8 @@ export class Sora extends SoraEventTarget {
    * 接続の状態
    */
   connectionState: SoraConnectionState = 'new';
+
+  removedClientIds = [];
 
   configuration: RTCConfiguration;
 
@@ -489,6 +492,11 @@ export class Sora extends SoraEventTarget {
         break;
       case 'notify':
         logger.log("# Sora: signaling 'notify' => ", signal);
+
+        if (signal.event_type == 'connection.destroyed') {
+          console.log('DEBUG: signal', signal);
+          this.removedClientIds.push(signal.client_id);
+        }
         break;
 
       case 'ping':
