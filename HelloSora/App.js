@@ -32,6 +32,7 @@ type Props = {};
 
 type State = {
   channelId: string,
+  signalingKey: String,
   multistream: bool,
   pubConn: Sora | null,
   subConn: Sora | null,
@@ -61,6 +62,7 @@ export default class App extends Component<Props, State> {
     super(props);
     this.state = {
       channelId: defaultChannelId,
+      signalingKey: '',
       multistream: false,
       pubConn: null,
       subConn: null,
@@ -114,6 +116,21 @@ export default class App extends Component<Props, State> {
               value={this.state.channelId}
               placeholder='Channel ID'
             />
+            <TextInput
+              label="シグナリングキー"
+              mode="outlined"
+              style={{
+                width: '100%',
+                minWidth: '80%',
+                height: 60,
+                borderColor: 'gray'
+              }}
+              onChangeText={(signalingKey) =>
+                  this.setState({ signalingKey: signalingKey })
+              }
+              value={this.state.signalingKey}
+              placeholder='Signaling Key'
+            />
             <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center'}}>
               <Switch
                 value={this.state.multistream}
@@ -137,7 +154,7 @@ export default class App extends Component<Props, State> {
               onPress={() => {
                 this.setState(prev => {
                   const role = this.state.multistream ? 'group' : 'publisher';
-                  const pubConn = new Sora(url, role, prev.channelId);
+                  const pubConn = new Sora(url, role, prev.channelId, prev.signalingKey);
                   pubConn.onconnectionstatechange = function (event) {
                     this.setState(prev => {
                       logger.log("# publisher connection state change => ",
@@ -164,7 +181,7 @@ export default class App extends Component<Props, State> {
               onPress={() => {
                 this.setState(prev => {
                   const role = this.state.multistream ? 'groupsub' : 'subscriber';
-                  const subConn = new Sora(url, role, prev.channelId);
+                  const subConn = new Sora(url, role, prev.channelId, prev.signalingKey);
                   subConn.onconnectionstatechange = function (event) {
                     this.setState(prev => {
                       logger.log("# subscriber connection state change => ",
